@@ -9,6 +9,67 @@ function add_to_res {
 	resources="$resource ${resources:-}"
 }
 
+function backup_lv {
+	local lv="${1:-}"
+	local vg="${2:-}"
+	local pv_name=$(vgs --noheadings -opv_name $vg | tr -d " ")
+	verbose "function backup_lv [LV: $lv, VG: $vg]"
+	chk_lv "$lv"
+	chk_vg "$vg"
+	echo "Merging $(echo $lv | cut -d / -f 1) and $vg"
+	vgmerge "$(echo $lv | cut -d / -f 1)" "$vg"
+	if [ "$?" == "0" ]; then
+		echo "OK"
+		echo "Converting $lv to a mirrored volume"
+		lvconvert -m1 $lv $pv_name
+		if [ "$?" == "0" ]; then
+			echo "OK"
+			echo "Activating $lv"
+			lvchange -ay $lv
+			if [ "$?" == "0" ]; then
+				echo "OK"
+				until [ "$(lvs -oraid_sync_action --noheadings $lv | tr -d ' ')" == "idle" ]; do
+					echo "waiting for sync to finish"
+					sleep 5
+				done
+				echo "Splitting of one image from the mirrored volume $lv"
+				lvconvert --splitmirrors 1 -n$(echo $lv | cut -d / -f 2)_$(date +%d_%m_%y) "$lv" "$pv_name"
+				if [ "$?" == "0" ]; then
+					echo "OK"
+					echo "De-activating $lv"
+					lvchange -an "$lv" "${lv}_$(date +%d_%m_%y)"
+					if [ "$?" == "0" ]; then
+						echo "OK"
+						echo "Splitting off $vg from $(echo $lv | cut -d / -f 1)"
+						vgsplit "$(echo $lv | cut -d / -f 1)" "$vg" "$pv_name"
+						if [ "$?" == "0" ]; then
+							echo "OK"
+						else
+							echo "Failed to split off $vg from $(echo $lv | cut -d / -f 1), exiting!"
+							exit 1
+						fi
+					else
+						echo "Could not deactivate $lv, exiting"
+						exit 1
+					fi
+				else
+					echo "Could not split off a mirror, exiting!"
+					exit 1
+				fi
+			else
+				echo "Failed to activate $lv, exiting!"
+				exit 1
+			fi
+		else
+			echo "Failed to convert $lv, exiting!"
+			exit 1
+		fi
+	else
+		echo "Failed to merge $vg into $(echo $lv | cut -d / -f 1), exiting!"
+		exit 1
+	fi
+}
+
 function chk_args {
 	verbose "function chk_args"
 	if [ -z "$vg_lv" -o -z "$vg" ]; then
@@ -23,7 +84,7 @@ function chk_lv {
 		verbose "$lv exists"
 	else
 		echo "VG/LV [$lv] not found, exiting!"
-		exit 1
+		usage
 	fi
 }
 
@@ -71,21 +132,21 @@ function chk_for_backup {
 }
 
 function clean_up {
-	verbose "function clean_up [resources: $resources]"
-	for resource in $resources; do
-		if (mountpoint $resource 1>&3 2>&4); then
-			umount "$resource"
-			rm_from_res "$resource"
+	verbose "function clean_up [resources: ${resources:-}]"
+	for resource in ${resources:-}; do
+		if (mountpoint ${resource:-} 1>&3 2>&4); then
+			umount "${resource:-}"
+			rm_from_res "${resource:-}"
 			continue
 		fi
-		if [ -b "$resource" ]; then
-			lvchange -an "$resource"
-			rm_from_res "$resource"
+		if [ -b "{$resource:-}" ]; then
+			lvchange -an "${resource:-}"
+			rm_from_res "${resource:-}"
 			continue
 		fi
-		if [ -d "$resource" ]; then
-			rmdir "$resource"
-			rm_from_res "$resource"
+		if [ -d "${resource:-}" ]; then
+			rmdir "${resource:-}"
+			rm_from_res "${resource:-}"
 			continue
 		fi
 	done
@@ -100,7 +161,8 @@ function cmp_lvs {
 	verbose "found backups: $backups"
 	for backup in $backups; do
 		verbose "checking $backup"
-		diff -r /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup
+		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup
+		read
 		if [ "$?" == "0" ]; then
 			echo "backup $backup OK"
 		else
@@ -117,7 +179,7 @@ function exit_trap {
 	if [ "$exit_code" == "0" ]; then
 		verbose "Exiting gracefully"
 	else
-		echo "command !! has exited with [$exit_code]"
+		echo "command [$@] has exited with [$exit_code]"
 	fi
 	clean_up
 }
@@ -178,6 +240,7 @@ function rm_from_res {
 function usage {
 	verbose "function usage"
 	echo "Please provide VG/LV to check the backup for and backup VG"
+	echo "$0 <VG/LV> <VG>"
 	exit 1
 }
 
@@ -199,5 +262,22 @@ function verbose {
 
 cfg_vars
 cfg_term
-cmp_lvs "$vg_lv" "$vg"
-clean_up
+
+while true; do
+
+	echo "Please choose one of the following options:"
+	echo "b - create backup of a volume $vg_lv"
+	echo "c - compare volume $vg_lv and its backup(s) from $vg VG"
+	echo "q - quit"
+	read input
+	case $input in
+		b) backup_lv "$vg_lv" "$vg"
+		   clean_up
+		   ;;
+		c) cmp_lvs "$vg_lv" "$vg"
+		   clean_up
+		   ;;
+		q) exit 0
+		   ;;
+	esac
+done
