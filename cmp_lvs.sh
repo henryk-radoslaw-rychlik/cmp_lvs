@@ -1,11 +1,9 @@
 #!/bin/bash
-vg_lv="${1:-}"
-vg="${2:-}"
 
 function add_to_res {
 	local exit_code="$?"
 	local resource="${1:-}"
-	verbose "function add_to_res [dir: $dir, exit_code: $exit_code]"
+	verbose "function add_to_res [resource: $resource, exit_code: $exit_code]"
 	resources="$resource ${resources:-}"
 }
 
@@ -33,11 +31,11 @@ function backup_lv {
 					sleep 5
 				done
 				echo "Splitting of one image from the mirrored volume $lv"
-				lvconvert --splitmirrors 1 -n$(echo $lv | cut -d / -f 2)_$(date +%d_%m_%y) "$lv" "$pv_name"
+				lvconvert --splitmirrors 1 -n$(echo $lv | cut -d / -f 2)_backup_$(date +%d.%m.%y) "$lv" "$pv_name"
 				if [ "$?" == "0" ]; then
 					echo "OK"
 					echo "De-activating $lv"
-					lvchange -an "$lv" "${lv}_$(date +%d_%m_%y)"
+					lvchange -an "$lv" "${lv}_backup_$(date +%d.%m.%y)"
 					if [ "$?" == "0" ]; then
 						echo "OK"
 						echo "Splitting off $vg from $(echo $lv | cut -d / -f 1)"
@@ -70,6 +68,34 @@ function backup_lv {
 	fi
 }
 
+function cecho {
+    local color="${2:-}"
+    local message="${1:-}"
+
+    local blue="\e[034m"
+    local default="\e[0m"
+    local green="\e[032m"
+    local light_blue="\e[094m"
+    local red="\e[031m"
+    local yellow="\e[033m"
+
+    if [ -n "$message" ]; then
+        if [ "$color" == "-blue" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" ]; then
+            eval "echo -e -n \$${color#-}\$message\$default"
+        elif [ "$color" == "blue" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" ]; then
+            eval "echo -e \$$color\$message\$default"
+        elif [ "$color" == "default" ]; then
+            eval "echo -e \$message"
+        else
+            cecho "Please specify a color for function cecho, exiting!" "red"
+            exit 1
+        fi
+    else
+        cecho "Please specify a message for function cecho, exiting!" "red"
+        exit 1
+    fi
+}
+
 function chk_args {
 	verbose "function chk_args"
 	if [ -z "$vg_lv" -o -z "$vg" ]; then
@@ -79,27 +105,47 @@ function chk_args {
 
 function chk_lv {
 	local lv="${1:-}"
-	verbose "function chk_lv [$lv]"
-	if $(lvs "$lv" 1>&3 2>&4); then
-		verbose "$lv exists"
+	verbose "function chk_lv [$lv]" "blue"
+
+	if [ -n "$lv" ]; then
+		if $(lvs "$lv" 1>&3 2>&4); then
+			verbose "$lv exists" "blue"
+		else
+			cecho "VG/LV [$lv] not found, exiting!" "red"
+			usage
+		fi
 	else
-		echo "VG/LV [$lv] not found, exiting!"
-		usage
+		cecho "lv [$lv] empty, exiting!" "red"
+		exit 1
 	fi
 }
 
 function chk_vg {
 	local vg="${1:-}"
-	verbose "function chk_vg [$vg]"
-	if $(vgs "$vg" 1>&3 2>&4); then
-		verbose "$vg exists"
+
+	verbose "function chk_vg vg $vg" "blue"
+	cecho "Checking VG $vg..." "-light_blue"
+
+	if [ -n "$vg" ]; then
+		if $(vgs "$vg" 1>&3 2>&4); then
+			verbose "VG $vg exists" "blue"
+		else
+			cecho "[vg: $vg] not found, exiting!" "red"
+			exit 1
+		fi
 	else
-		echo "VG [$vg] not found, exiting!"
+		cecho "[vg: $vg] empty, exiting!" "red"
 		exit 1
 	fi
 }
 
 function cfg_term {
+	verbose "function cfg_term" "blue"
+	cecho "Configuring terminal..." "-light_blue"
+
+	set -euf -o pipefail
+	trap exit_trap EXIT
+
 	if [ "$verbose" == "yes" ]; then
 		exec 3<&1
 		exec 4<&2
@@ -107,16 +153,25 @@ function cfg_term {
 		exec 3>/dev/null
 		exec 4>/dev/null
 	else
-		echo "verbose variable not set correctly[$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!"
+		echo "verbose variable not set correctly[nerbose=$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!"
 		exit 1
 	fi
 
-	trap exit_trap EXIT
-	set -euf -o pipefail
+	cecho "OK" "green"
 }
 
 function cfg_vars {
-	verbose="no"
+	verbose="yes"
+
+	verbose "function cfg_vars" "blue"
+
+	cecho "Setting variables..." "-light_blue"
+
+	dst_vg="$2"
+	src_lv=$(echo $1 | cut -d / -f 2)
+	src_vg=$(echo $1 | cut -d / -f 1)
+
+	cecho "OK" "green"
 }
 
 function chk_for_backup {
@@ -124,7 +179,7 @@ function chk_for_backup {
 	local vg="${2:-}"
 	verbose "function chk_for_backup [lv: $lv, vg: $vg]"
 	if [ -n "$vg" -a -n "$lv" ]; then
-		backups="$(lvs --noheadings -doname $vg | grep $lv)"
+		backups=$(lvs --noheadings -doname $vg | grep "\<$lv")
 	else
 		echo "lv [$lv] or vg [$vg] is empty, exiting!"
 		exit 1
@@ -132,24 +187,31 @@ function chk_for_backup {
 }
 
 function clean_up {
-	verbose "function clean_up [resources: ${resources:-}]"
+	verbose "function clean_up [resources: ${resources:-}]" "blue"
+	cecho "Cleaning up..." "-light_blue"
+
 	for resource in ${resources:-}; do
-		if (mountpoint ${resource:-} 1>&3 2>&4); then
-			umount "${resource:-}"
-			rm_from_res "${resource:-}"
+		if (mountpoint "$resource" > /dev/null); then
+			verbose "Unmountng $resource" "blue"
+			umount "$resource"
+			rm_from_res "$resource"
 			continue
 		fi
-		if [ -b "{$resource:-}" ]; then
-			lvchange -an "${resource:-}"
-			rm_from_res "${resource:-}"
+		if [ -b "$resource" ]; then
+			verbose "De-activating $resource"
+			lvchange -an "$resource"
+			rm_from_res "$resource"
 			continue
 		fi
-		if [ -d "${resource:-}" ]; then
-			rmdir "${resource:-}"
-			rm_from_res "${resource:-}"
+		if [ -d "$resource" ]; then
+			verbose "Deleting $resource"
+			rmdir "$resource"
+			rm_from_res "$resource"
 			continue
 		fi
 	done
+
+	cecho "OK" "green"
 }
 
 function cmp_lvs {
@@ -161,8 +223,9 @@ function cmp_lvs {
 	verbose "found backups: $backups"
 	for backup in $backups; do
 		verbose "checking $backup"
-		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup
+		echo "Press enter to start"
 		read
+		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup > $(echo $lv | cut -d "/" -f 2)
 		if [ "$?" == "0" ]; then
 			echo "backup $backup OK"
 		else
@@ -174,14 +237,26 @@ function cmp_lvs {
 
 function exit_trap {
 	local exit_code="$?"
-	verbose "function exit_trap"
+	verbose "function exit_trap [exit_code: $?]" "blue"
 
 	if [ "$exit_code" == "0" ]; then
-		verbose "Exiting gracefully"
+		verbose "Exiting gracefully" "blue"
 	else
-		echo "command [$@] has exited with [$exit_code]"
+		cecho "command  has exited with code [$exit_code]" "red"
 	fi
+
 	clean_up
+}
+
+function main {
+	cfg_vars "$@"
+	echo $@
+	verbose "function main arguments" "blue"
+
+	cfg_term
+	chk_vg "$dst_vg"
+	chk_vg "$src_vg"
+	chk_lv "$src_vg/$src_lv"
 }
 
 function mk_dir {
@@ -215,9 +290,9 @@ function mnt_lv {
 	if [ ! -b /dev/"$lv" ]; then
 		verbose "Trying to activate $lv"
 		lvchange -ay "$lv"
-		add_to_res "/dev/$lv"
 	fi
 	mount /dev/"$lv" "$dir"
+	add_to_res "/dev/$lv"
 	add_to_res "$dir"
 }
 
@@ -239,45 +314,30 @@ function rm_from_res {
 
 function usage {
 	verbose "function usage"
-	echo "Please provide VG/LV to check the backup for and backup VG"
+	cecho "Please provide VG/LV to check the backup for and backup VG" "yellow"
 	echo "$0 <VG/LV> <VG>"
 	exit 1
 }
 
 function verbose {
+	local color="${2:-}"
 	local message="${1:-}"
-
-	if [ -z "$message" ]; then
-		echo "An empty message has been provided, exiting!"
-		exit 1
-	fi
-
 	if [ "$verbose" == "yes" ]; then
-		echo "$message"
-	elif [ "$verbose" != "no" ] && [ "$verbose" != "yes" ]; then
-		echo "verbose2 variable not set correctly[$verbose]. Please set it in configure_variables function and try again, exiting!"
+		if [ "$color" == "-blue" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" -o "$color" == "blue" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" -o "$color" == "default" ]; then
+			if [ -n "$message" ]; then
+            			cecho "$message" "$color"
+        		else
+				cecho "please specify message for function verbose, exiting!" "red"
+   				exit 1
+			fi
+		else
+            		cecho "Please specify a color for function verbose, exiting!" "red"
+			exit 1
+		fi
+	elif [ "$verbose" != "no" -a "$verbose" != "yes" ]; then
+		cecho "please set global variable [verbose: $verbose] to [no/yes], exiting!" "red"
 		exit 1
-	fi
+        fi
 }
 
-cfg_vars
-cfg_term
-
-while true; do
-
-	echo "Please choose one of the following options:"
-	echo "b - create backup of a volume $vg_lv"
-	echo "c - compare volume $vg_lv and its backup(s) from $vg VG"
-	echo "q - quit"
-	read input
-	case $input in
-		b) backup_lv "$vg_lv" "$vg"
-		   clean_up
-		   ;;
-		c) cmp_lvs "$vg_lv" "$vg"
-		   clean_up
-		   ;;
-		q) exit 0
-		   ;;
-	esac
-done
+main $@
