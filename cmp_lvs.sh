@@ -214,10 +214,17 @@ function clean_up {
 			continue
 		fi
 		if [ -b "$resource" ]; then
-			verbose "De-activating $resource" "blue"
-			lvchange -an "$resource"
-			rm_from_res "$resource"
-			continue
+			if (cryptsetup status "$resource"); then
+				verbose "Closing encrypted $resource" "blue"
+				cryptsetup close "$resource"
+				rm_from_res "$resource"
+				continue
+			else
+				verbose "De-activating $resource" "blue"
+				lvchange -an "$resource"
+				rm_from_res "$resource"
+				continue
+			fi
 		fi
 		if [ -d "$resource" ]; then
 			verbose "Deleting $resource" "blue"
@@ -239,7 +246,7 @@ function cmp_lvs {
 	mnt_backups "$lv" "$vg"
 
 	for backup in $backups; do
-		cecho "checking $backup" "-light_blue"
+		cecho "checking $backup..." "-light_blue"
 		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup > $(echo $lv | cut -d "/" -f 2)
 		if [ "$?" == "0" ]; then
 			cecho "OK" "green"
@@ -335,8 +342,14 @@ function mnt_lv {
 			exit 1
 		fi
 	fi
-	mount /dev/"$lv" "$dir"
 	add_to_res "/dev/$lv"
+	if (cryptsetup isLuks /dev/"$lv"); then
+		cryptsetup luksOpen /dev/"$lv" "$(echo $lv | cut -f 2 -d /)"
+		mount /dev/mapper/"$(echo $lv | cut -f 2 -d /)" "$dir"
+		add_to_res /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
+	else
+		mount /dev/"$lv" "$dir"
+	fi
 	add_to_res "$dir"
 }
 
