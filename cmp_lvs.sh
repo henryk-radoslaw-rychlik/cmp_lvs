@@ -154,7 +154,7 @@ function cfg_term {
 		exec 3>/dev/null
 		exec 4>/dev/null
 	else
-		echo "verbose variable not set correctly[nerbose=$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!" "blue"
+		cecho "verbose variable not set correctly [verbose=$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!" "red"
 		exit 1
 	fi
 
@@ -166,9 +166,11 @@ function cfg_vars {
 
 	if [ "$3" == "verbose" ]; then
 		verbose="yes"
+	elif [ "$3" != "verbose" -a "$3" != "" ]; then
+		usage
 	fi
 
-	verbose "function cfg_vars arguments:[$(echo $@)]" "blue"
+	verbose "function cfg_vars arguments: [$(echo $@)]" "blue"
 
 	if [ "$#" -lt "2" ]; then
 		usage
@@ -177,8 +179,14 @@ function cfg_vars {
 	cecho "Setting variables..." "-light_blue"
 
 	dst_vg="$2"
-	src_lv=$(echo $1 | cut -d / -f 2)
-	src_vg=$(echo $1 | cut -d / -f 1)
+	src_vg="$(echo $1 | cut -d / -f 1)"
+	if [ -z "$(echo $1 | cut -d / -f 2)" ]; then
+		src_lvs="$(lvs --noheadings -oname $src_vg)"
+	else
+		src_lvs="$(echo $1 | cut -d / -f 2)"
+	fi
+
+	cecho "\n$src_vg : $src_lv : $src_lvs : $dst_vg" "red"
 
 	cecho "OK" "green"
 }
@@ -193,9 +201,10 @@ function chk_for_backup {
 	chk_vg "$dst_vg"
 
 	cecho "Searching for existing backup..." "-light_blue"
-
+	echo 1
+	echo $dst_vg
 	backups=$(lvs --noheadings -doname $dst_vg | grep "\<$lv"; true)
-
+	echo 2
 	if [ -n "$backups" ]; then
 		cecho "Found $backups..." "-light_blue"
 	fi
@@ -247,7 +256,7 @@ function cmp_lvs {
 
 	for backup in $backups; do
 		cecho "checking $backup..." "-light_blue"
-		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup > $(echo $lv | cut -d "/" -f 2)
+		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup > $(echo $lv | cut -d "/" -f 2)-$vg-$backup
 		if [ "$?" == "0" ]; then
 			cecho "OK" "green"
 		else
@@ -279,27 +288,32 @@ function get_answer {
 }
 
 function main {
+	cfg_vars "$@"
 	verbose "function main arguments:[$(echo $@)]" "blue"
-
 	cfg_term
-	chk_for_backup "$src_vg" "$src_lv" "$dst_vg"
-	if [ -n "$backups" ]; then
-		cecho "Would you like to compare[no/yes]?" "default"
-		get_answer
-		if [ "$answer" == "yes" ]; then
-			cmp_lvs "$src_vg/$src_lv" "$dst_vg"
+
+	for src_lv in "$src_lvs"; do
+		chk_for_backup "$src_vg" "$src_lv" "$dst_vg"
+		if [ -n "$backups" ]; then
+			cecho "Would you like to compare[no/yes]?" "default"
+			get_answer
+			if [ "$answer" == "yes" ]; then
+				cmp_lvs "$src_vg/$src_lv" "$dst_vg"
+			else
+				cecho "OK buddy, exiting" "blue"
+				exit 0
+			fi
 		else
-			exit 0
+			cecho "No backups found, would you like to create[no/yes]?" "blue"
+			get_answer
+			if [ "$answer" == "yes" ]; then
+				backup_lv "$src_vg/$src_lv" "$dst_vg"
+			else
+				cecho "OK buddy, exiting" "blue"
+				exit 0
+			fi
 		fi
-	else
-		cecho "No backups found, would you like to create[no/yes]?" "blue"
-		get_answer
-		if [ "$answer" == "yes" ]; then
-			backup_lv "$src_vg/$src_lv" "$dst_vg"
-		else
-			exit 0
-		fi
-	fi
+	done
 }
 
 function mk_dir {
@@ -399,5 +413,4 @@ function verbose {
         fi
 }
 
-cfg_vars "$@"
 main "$@"
