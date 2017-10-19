@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#-------------------------------------------------
+# See bottom of the file for configurable settings
+#-------------------------------------------------
+
 function add_to_res {
 	local exit_code="$?"
 	local resource="${1:-}"
@@ -69,8 +73,8 @@ function backup_lv {
 }
 
 function cecho {
-    local color="${2:-}"
-    local message="${1:-}"
+    local color="${1:-}"
+    local message="${2:-}"
 
     local blue="\e[034m"
     local default="\e[0m"
@@ -87,11 +91,11 @@ function cecho {
         elif [ "$color" == "default" ]; then
             eval "echo -e \$message"
         else
-            cecho "Please specify a color for function cecho, exiting!" "red"
+            cecho "red" "Please set the \"color\" argument properly for the cecho function and try again, exiting!"
             exit 1
         fi
     else
-        cecho "Please specify a message for function cecho, exiting!" "red"
+        cecho "red" "Please set the \"message\" argument properly for the cecho function and try again, exiting!"
         exit 1
     fi
 }
@@ -162,8 +166,6 @@ function cfg_term {
 }
 
 function cfg_vars {
-	verbose="no"
-
 	if [ "$3" == "verbose" ]; then
 		verbose="yes"
 	elif [ "$3" != "verbose" -a "$3" != "" ]; then
@@ -288,8 +290,8 @@ function get_answer {
 }
 
 function main {
-	cfg_vars "$@"
 	verbose "function main arguments:[$(echo $@)]" "blue"
+	cfg_vars "$@"
 	cfg_term
 
 	for src_lv in "$src_lvs"; do
@@ -393,24 +395,34 @@ function usage {
 }
 
 function verbose {
-	local color="${2:-}"
-	local message="${1:-}"
-	if [ "$verbose" == "yes" ]; then
-		if [ "$color" == "-blue" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" -o "$color" == "blue" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" -o "$color" == "default" ]; then
-			if [ -n "$message" ]; then
-            			cecho "$message" "$color"
-        		else
-				cecho "please specify message for function verbose, exiting!" "red"
-   				exit 1
-			fi
-		else
-            		cecho "Please specify a color for function verbose, exiting!" "red"
-			exit 1
+	local color="${1:-}"
+	local message="${2:-}"
+
+	if [ -n "$color" ]; then
+		if [ -n "$message" ]; then
+			if [ "$verbose" == "yes" ]; then
+            			cecho "$color" "$message"
+			elif [ "$verbose" != "no" -a "$verbose" != "yes" ]; then
+				cecho "red" "Please set the global \"verbose\" variable properly [\"$verbose\" != no/yes] at the bottom of the $0 file and try again, exiting!"
+				exit 1
+        		fi
+        	else
+			cecho "red" "Please set the \"message\" argument properly for the verbose function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
+   			exit 1
 		fi
-	elif [ "$verbose" != "no" -a "$verbose" != "yes" ]; then
-		cecho "please set global variable [verbose: $verbose] to [no/yes], exiting!" "red"
+	else
+		cecho "red" "Please set the \"color\" argument properly for the verbose function and try again, exiting!"
 		exit 1
-        fi
+	fi
 }
 
-main "$@"
+# Configurable settings
+#===========
+verbose="no"
+#===========
+
+# Main function
+#========
+verbose "red" ""
+#main "$@"
+#========
