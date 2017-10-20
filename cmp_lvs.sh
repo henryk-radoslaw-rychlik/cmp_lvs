@@ -18,11 +18,11 @@ function backup_lv {
 	local pv_name=$(vgs --noheadings -opv_name $vg | tr -d " ")
 	verbose "function backup_lv [LV: $lv, VG: $vg]" "blue"
 
-	cecho "Merging $(echo $lv | cut -d / -f 1) and $vg..." "-light_blue"
+	cecho "-light-blue" "Merging $(echo $lv | cut -d / -f 1) and $vg..."
 	vgmerge "$(echo $lv | cut -d / -f 1)" "$vg"
 	if [ "$?" == "0" ]; then
-		cecho "OK" "green"
-		cecho "Converting $lv to a mirrored volume..." "-light_blue"
+		cecho "green" "OK"
+		cecho "-light_blue" "Converting $lv to a mirrored volume..."
 		lvconvert -m1 $lv $pv_name
 		if [ "$?" == "0" ]; then
 			cecho "OK" "green"
@@ -73,31 +73,30 @@ function backup_lv {
 }
 
 function cecho {
-    local color="${1:-}"
-    local message="${2:-}"
+	local color="${1:-}"
+    	local message="${2:-}"
 
-    local blue="\e[034m"
-    local default="\e[0m"
-    local green="\e[032m"
-    local light_blue="\e[094m"
-    local red="\e[031m"
-    local yellow="\e[033m"
+	local blue="\e[034m"
+    	local default="\e[0m"
+    	local green="\e[032m"
+    	local light_blue="\e[094m"
+    	local red="\e[031m"
+    	local yellow="\e[033m"
 
-    if [ -n "$message" ]; then
-        if [ "$color" == "-blue" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" ]; then
-            eval "echo -e -n \$${color#-}\$message\$default"
-        elif [ "$color" == "blue" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" ]; then
-            eval "echo -e \$$color\$message\$default"
-        elif [ "$color" == "default" ]; then
-            eval "echo -e \$message"
-        else
-            cecho "red" "Please set the \"color\" argument properly for the cecho function and try again, exiting!"
-            exit 1
-        fi
-    else
-        cecho "red" "Please set the \"message\" argument properly for the cecho function and try again, exiting!"
-        exit 1
-    fi
+	if [ -n "$message" ]; then
+        	if [ "$color" == "-blue" -o "$color" == "default" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" ]; then
+        	    echo aaab
+			eval "echo -e -n \$${color#-}\$message\$default"
+        	elif [ "$color" == "blue" -o "$color" == "default" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" ]; then
+			eval "echo -e \$$color\$message\$default"
+        	else
+        	    cecho "red" "Please set the \"color\" argument properly for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
+        	    exit 1
+        	fi
+    	else
+        	cecho "red" "Please set the \"message\" argument properly for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
+       		exit 1
+	fi
 }
 
 function chk_args {
@@ -290,7 +289,9 @@ function get_answer {
 }
 
 function main {
-	verbose "function main arguments:[$(echo $@)]" "blue"
+	arguments=${@:-}
+	verbose "blue" "function main [arguments: $arguments]"
+	exit 0
 	cfg_vars "$@"
 	cfg_term
 
@@ -411,18 +412,17 @@ function verbose {
    			exit 1
 		fi
 	else
-		cecho "red" "Please set the \"color\" argument properly for the verbose function and try again, exiting!"
+		cecho "red" "Please set the \"color\" argument properly for the verbose function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
 		exit 1
 	fi
 }
 
 # Configurable settings
 #===========
-verbose="no"
+verbose="yes"
 #===========
 
 # Main function
 #========
-verbose "red" ""
-#main "$@"
+main "$@"
 #========
