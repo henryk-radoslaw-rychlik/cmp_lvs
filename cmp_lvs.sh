@@ -7,7 +7,7 @@
 function add_to_res {
 	local exit_code="$?"
 	local resource="${1:-}"
-	verbose "function add_to_res [resource: $resource, exit_code: $exit_code]" "blue"
+	verbose "blue" "function add_to_res [resource: $resource, exit_code: $exit_code]"
 
 	resources="$resource ${resources:-}"
 }
@@ -16,7 +16,7 @@ function backup_lv {
 	local lv="${1:-}"
 	local vg="${2:-}"
 	local pv_name=$(vgs --noheadings -opv_name $vg | tr -d " ")
-	verbose "function backup_lv [LV: $lv, VG: $vg]" "blue"
+	verbose "blue" "function backup_lv [LV: $lv, VG: $vg]"
 
 	cecho "-light-blue" "Merging $(echo $lv | cut -d / -f 1) and $vg..."
 	vgmerge "$(echo $lv | cut -d / -f 1)" "$vg"
@@ -25,49 +25,50 @@ function backup_lv {
 		cecho "-light_blue" "Converting $lv to a mirrored volume..."
 		lvconvert -m1 $lv $pv_name
 		if [ "$?" == "0" ]; then
-			cecho "OK" "green"
-			cecho "Activating $lv" "-light_blue"
+			cecho "green" "OK"
+			cecho "-light_blue" "Activating $lv"
 			lvchange -ay $lv
 			if [ "$?" == "0" ]; then
-				cecho "OK" "green"
+				cecho "green" "OK"
 				until [ "$(lvs -oraid_sync_action --noheadings $lv | tr -d ' ')" == "idle" ]; do
 					lvs --noheadings -osync_percent $lv
 					sleep 5
 				done
-				cecho "Splitting of one image from the mirrored volume $lv" "-light_blue"
+				cecho "-light_blue" "Splitting of one image from the mirrored volume $lv"
 				lvconvert --splitmirrors 1 -n$(echo $lv | cut -d / -f 2)_backup_$(date +%d.%m.%y) "$lv" "$pv_name"
 				if [ "$?" == "0" ]; then
-					cecho "OK" "green"
-					cecho "De-activating $lv" "-light_blue"
+					cecho "green" "OK"
+					cecho "-light_blue" "De-activating $lv"
 					lvchange -an "$lv" "${lv}_backup_$(date +%d.%m.%y)"
 					if [ "$?" == "0" ]; then
-						cecho "OK" "green"
-						cecho "Splitting off $vg from $(echo $lv | cut -d / -f 1)" "-light_blue"
+						cecho "green" "OK"
+						cecho "-light_blue" "Splitting off $vg from $(echo $lv | cut -d / -f 1)"
  						vgsplit "$(echo $lv | cut -d / -f 1)" "$vg" "$pv_name"
 						if [ "$?" == "0" ]; then
-							cecho "OK" "green"
+							cecho "green" "OK"
 						else
-							cecho "Failed to split off $vg from $(echo $lv | cut -d / -f 1), exiting!" "red"
+							cecho "red" "Failed to split off $vg from $(echo $lv | cut -d / -f 1), exiting!"
 							exit 1
 						fi
 					else
-						cecho "Could not deactivate $lv, exiting" "red"
+						cecho "red" "Could not deactivate $lv, exiting"
 						exit 1
 					fi
 				else
-					cecho "Could not split off a mirror, exiting!" "red"
+					cecho "red" "Could not split off a mirror, exiting!"
 					exit 1
 				fi
 			else
-				cecho "Failed to activate $lv, exiting!" "red"
+				cecho "red" "Failed to activate $lv, exiting!"
 				exit 1
 			fi
 		else
-			cecho "Failed to convert $lv, exiting!" "red"
+			cecho "red" "Failed to convert $lv, exiting!"
 			exit 1
 		fi
 	else
-		cecho "Failed to merge $vg into $(echo $lv | cut -d / -f 1), exiting!" "red"
+		cecho "red" "Failed to merge $vg into $(echo $lv | cut -d / -f 1), exiting!"
+
 		exit 1
 	fi
 }
@@ -100,7 +101,7 @@ function cecho {
 }
 
 function chk_args {
-	verbose "function chk_args" "blue"
+	verbose "blue" "function chk_args"
 	if [ -z "$vg_lv" -o -z "$vg" ]; then
 		usage
 	fi
@@ -108,18 +109,18 @@ function chk_args {
 
 function chk_lv {
 	local lv="${1:-}"
-	verbose "function chk_lv [$lv]" "blue"
-	cecho "Checking LV [$lv]..." "-light_blue"
+	verbose "blue" "function chk_lv [$lv]"
+	cecho "-light_blue" "Checking LV [$lv]..."
 
 	if [ -n "$lv" ]; then
 		if $(lvs "$lv" 1>&3 2>&4); then
-			cecho "OK" "green"
+			cecho "green" "OK"
 		else
-			cecho "LV [$lv] not found, exiting!" "red"
+			cecho "red" "LV [$lv] not found, exiting!"
 			exit 1
 		fi
 	else
-		cecho "LV empty, exiting!" "red"
+		cecho "red" "LV empty, exiting!"
 		exit 1
 	fi
 }
@@ -127,25 +128,25 @@ function chk_lv {
 function chk_vg {
 	local vg="${1:-}"
 
-	verbose "function chk_vg arguments:[vg: $vg]" "blue"
-	cecho "Checking VG $vg..." "-light_blue"
+	verbose "blue" "function chk_vg arguments:[vg: $vg]"
+	cecho "-light_blue" "Checking VG $vg..."
 
 	if [ -n "$vg" ]; then
 		if $(vgs "$vg" 1>&3 2>&4); then
-			cecho "OK" "green"
+			cecho "green" "OK"
 		else
-			cecho "VG [$vg] not found, exiting!" "red"
+			cecho "red" "VG [$vg] not found, exiting!"
 			exit 1
 		fi
 	else
-		cecho "VG empty, exiting!" "red"
+		cecho "red" "VG empty, exiting!"
 		exit 1
 	fi
 }
 
 function cfg_term {
-	verbose "function cfg_term" "blue"
-	cecho "Configuring terminal..." "-light_blue"
+	verbose "blue" "function cfg_term"
+	cecho "-light_blue" "Configuring terminal..."
 
 	set -euf -o pipefail
 	trap exit_trap EXIT
@@ -157,111 +158,120 @@ function cfg_term {
 		exec 3>/dev/null
 		exec 4>/dev/null
 	else
-		cecho "verbose variable not set correctly [verbose=$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!" "red"
+		cecho "red" "verbose variable not set correctly [verbose=$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!"
 		exit 1
 	fi
 
-	cecho "OK" "green"
+	cecho "green" "OK"
 }
 
 function cfg_vars {
-	if [ "$3" == "verbose" ]; then
-		verbose="yes"
-	elif [ "$3" != "verbose" -a "$3" != "" ]; then
-		usage
-	fi
+	local arguments="$@"
+	verbose "blue" "function cfg_vars [arguments: $arguments]"
 
-	verbose "function cfg_vars arguments: [$(echo $@)]" "blue"
-
-	if [ "$#" -lt "2" ]; then
-		usage
-	fi
-
-	cecho "Setting variables..." "-light_blue"
-
-	dst_vg="$2"
-	src_vg="$(echo $1 | cut -d / -f 1)"
-	if [ -z "$(echo $1 | cut -d / -f 2)" ]; then
-		src_lvs="$(lvs --noheadings -oname $src_vg)"
+	if [ "$#" -gt "0" -a "$#" -lt "4" ]; then
+		if [ "$#" == "1" ]; then
+			true
+		elif [ "$#" == "2" ]; then
+			true
+		elif [ "$#" == "3" ]; then
+			if [ "$3" == "verbose" ]; then
+				verbose="yes"
+			else
+				cecho "red" "Number of arguments used [$#] requires last one to be "verbose" or empty. Please use correct arguments and try again, exiting!"
+				usage
+			fi
+		fi
 	else
-		src_lvs="$(echo $1 | cut -d / -f 2)"
+		cecho "red" "Number of arguments used is not supported [1<$#<4]. Please use correct arguments and try again, exiting!"
+		usage
 	fi
 
-	cecho "\n$src_vg : $src_lv : $src_lvs : $dst_vg" "red"
+	cecho "-light_blue" "Setting variables..."
 
-	cecho "OK" "green"
+#	dst_vg="$2"
+#	src_vg="$(echo $1 | cut -d / -f 1)"
+#	if [ -z "$(echo $1 | cut -d / -f 2)" ]; then
+#		src_lvs="$(lvs --noheadings -oname $src_vg)"
+#	else
+#		src_lvs="$(echo $1 | cut -d / -f 2)"
+#	fi
+
+#	cecho "red" "\n$src_vg : $src_lv : $src_lvs : $dst_vg"
+
+	cecho "green" "OK"
 }
 
 function chk_for_backup {
 	local dst_vg="$3"
 	local lv="$2"
 	local vg="$1"
-	verbose "function chk_for_backup [lv: $lv, vg: $vg]" "blue"
+	verbose "blue" "function chk_for_backup [lv: $lv, vg: $vg]"
 
 	chk_lv "$vg/$lv"
 	chk_vg "$dst_vg"
 
-	cecho "Searching for existing backup..." "-light_blue"
+	cecho "-light_blue" "Searching for existing backup..."
 	echo 1
 	echo $dst_vg
 	backups=$(lvs --noheadings -doname $dst_vg | grep "\<$lv"; true)
 	echo 2
 	if [ -n "$backups" ]; then
-		cecho "Found $backups..." "-light_blue"
+		cecho "-light_blue" "Found $backups..."
 	fi
-	cecho "OK" "green"
+	cecho "green" "OK"
 }
 
 function clean_up {
-	verbose "function clean_up [resources: ${resources:-}]" "blue"
-	cecho "Cleaning up..." "-light_blue"
+	verbose "blue" "function clean_up [resources: ${resources:-}]"
+	cecho "-light_blue" "Cleaning up..."
 
 	for resource in ${resources:-}; do
 		if (mountpoint "$resource" > /dev/null); then
-			verbose "Unmountng $resource" "blue"
+			verbose "blue" "Unmountng $resource"
 			umount "$resource"
 			rm_from_res "$resource"
 			continue
 		fi
 		if [ -b "$resource" ]; then
 			if (cryptsetup status "$resource"); then
-				verbose "Closing encrypted $resource" "blue"
+				verbose "blue" "Closing encrypted $resource"
 				cryptsetup close "$resource"
 				rm_from_res "$resource"
 				continue
 			else
-				verbose "De-activating $resource" "blue"
+				verbose "blue" "De-activating $resource"
 				lvchange -an "$resource"
 				rm_from_res "$resource"
 				continue
 			fi
 		fi
 		if [ -d "$resource" ]; then
-			verbose "Deleting $resource" "blue"
+			verbose "blue" "Deleting $resource"
 			rmdir "$resource"
 			rm_from_res "$resource"
 			continue
 		fi
 	done
 
-	cecho "OK" "green"
+	cecho "green" "OK"
 }
 
 function cmp_lvs {
 	local lv="${1:-}"
 	local vg="${2:-}"
-	verbose "function cmp_lvs [lv:$lv, vg:$vg]" "blue"
+	verbose "blue" "function cmp_lvs [lv:$lv, vg:$vg]"
 
 	mnt_lv "$lv"
 	mnt_backups "$lv" "$vg"
 
 	for backup in $backups; do
-		cecho "checking $backup..." "-light_blue"
+		cecho "-light_blue" "checking $backup..."
 		diff -ry --no-dereference --suppress-common-lines /mnt/$(echo $lv | cut -d "/" -f 2) /mnt/$backup > $(echo $lv | cut -d "/" -f 2)-$vg-$backup
 		if [ "$?" == "0" ]; then
-			cecho "OK" "green"
+			cecho "green" "OK"
 		else
-			cecho "backup $backup differs" "yellow"
+			cecho "yellow" "backup $backup differs"
 			exit 1
 		fi
 	done
@@ -269,12 +279,12 @@ function cmp_lvs {
 
 function exit_trap {
 	local exit_code="$?"
-	verbose "function exit_trap [exit_code: $?]" "blue"
+	verbose "blue" "function exit_trap [exit_code: $?]"
 
 	if [ "$exit_code" == "0" ]; then
-		verbose "Exiting gracefully" "blue"
+		verbose "blue" "Exiting gracefully"
 	else
-		cecho "command  has exited with code [$exit_code]" "red"
+		cecho "red" "command  has exited with code [$exit_code]"
 	fi
 
 	clean_up
@@ -283,36 +293,37 @@ function exit_trap {
 function get_answer {
     read answer
     while [ "$answer" != "no" -a "$answer" != "yes" ]; do
-        cecho "Please choose the correct answer[no/yes]!" "yellow"
+        cecho "yellow" "Please choose the correct answer[no/yes]!"
         read answer
     done
 }
 
 function main {
-	arguments=${@:-}
+	arguments="$@"
 	verbose "blue" "function main [arguments: $arguments]"
+
+	cfg_vars $arguments
 	exit 0
-	cfg_vars "$@"
 	cfg_term
 
 	for src_lv in "$src_lvs"; do
 		chk_for_backup "$src_vg" "$src_lv" "$dst_vg"
 		if [ -n "$backups" ]; then
-			cecho "Would you like to compare[no/yes]?" "default"
+			cecho "default" "Would you like to compare[no/yes]?"
 			get_answer
 			if [ "$answer" == "yes" ]; then
 				cmp_lvs "$src_vg/$src_lv" "$dst_vg"
 			else
-				cecho "OK buddy, exiting" "blue"
+				cecho "blue" "OK buddy, exiting"
 				exit 0
 			fi
 		else
-			cecho "No backups found, would you like to create[no/yes]?" "blue"
+			cecho "blue" "No backups found, would you like to create[no/yes]?"
 			get_answer
 			if [ "$answer" == "yes" ]; then
 				backup_lv "$src_vg/$src_lv" "$dst_vg"
 			else
-				cecho "OK buddy, exiting" "blue"
+				cecho "blue" "OK buddy, exiting"
 				exit 0
 			fi
 		fi
@@ -321,10 +332,10 @@ function main {
 
 function mk_dir {
 	local dir="${1:-}"
-	verbose "function mk_dir [$dir]" "blue"
+	verbose "blue" "function mk_dir [$dir]"
 
 	if [ -d "$dir" ]; then
-		cecho "Directory [$dir] already exists. exiting!" "red"
+		cecho "red" "Directory [$dir] already exists. exiting!"
 		exit 1
 	else
 		mkdir "$dir"
@@ -335,7 +346,7 @@ function mk_dir {
 function mnt_backups {
 	local lv="${1:-}"
 	local vg="${2:-}"
-	verbose "function mount_backups [lv:$lv, vg:$vg]" "blue"
+	verbose "blue" "function mount_backups [lv:$lv, vg:$vg]"
 
 	for backup in $backups; do
 		mnt_lv "$vg/$backup"
@@ -345,17 +356,17 @@ function mnt_backups {
 function mnt_lv {
 	local lv="${1:-}"
 	local dir="/mnt/$(echo $lv | cut -d / -f 2)"
-	verbose "function mnt_lv [LV: $lv, DIR: $dir]" "blue"
-	cecho "Mounting $lv at $dir..." "-light_blue"
+	verbose "blue" "function mnt_lv [LV: $lv, DIR: $dir]"
+	cecho "-light_blue" "Mounting $lv at $dir..."
 
 	mk_dir "$dir"
 	if [ ! -b /dev/"$lv" ]; then
-		cecho "/dev/$lv does not exist, trying to activate..." "blue"
+		cecho "blue" "/dev/$lv does not exist, trying to activate..."
 		lvchange -ay "$lv"
 		if [ "$?" == "0" ]; then
-			cecho "OK" "green"
+			cecho "green" "OK"
 		else
-			cecho "Failed to activate LV $lv, exiting!" "red"
+			cecho "red" "Failed to activate LV $lv, exiting!"
 			exit 1
 		fi
 	fi
@@ -372,26 +383,29 @@ function mnt_lv {
 
 function rm_from_res {
 	local resource=${1:-}
-	verbose "function rm_from_res [resource: $resource, resources: $resources]" "blue"
+	verbose "blue" "function rm_from_res [resource: $resource, resources: $resources]"
 	if [ -n "$resources" ]; then
 		if [ -n "resource" ]; then
-			verbose "Removing $resource" "blue"
+			verbose "blue" "Removing $resource"
 			resources=${resources#$resource }
 		else
 			echo "The given resource [$resource] is empty, exiting!"
 			exit 1
 		fi
 	else
-		verbose "Clean_up complete" "blue"
+		verbose "blue" "Clean_up complete"
 	fi
 }
 
 function usage {
-	verbose "function usage" "blue"
-	cecho "usage:" "yellow"
-	cecho "$0 VG/LV VG" "yellow"
-	cecho "VG/LV - Logical Volume in Volume Group to compare or back up" "yellow"
-	cecho "VG - Volume Group with backup or destination" "yellow"
+	verbose "blue" "function usage"
+
+	cecho "yellow" "Usage:\n\n\
+			$0 VG/LV VG [verbose]\n\
+			VG/LV - Logical Volume(LV) in Volume Group(VG) to compare or back up\n\
+			VG - Volume Group with backup or destination\n\n\
+			$0 VG/LV [verbose]\n\
+			VG/LV - Logical Volume(LV) in Volume Group(VG) to activate/deactivate and mount/unmount"
 	exit 1
 }
 
@@ -419,10 +433,13 @@ function verbose {
 
 # Configurable settings
 #===========
-verbose="yes"
+verbose="no"
 #===========
 
 # Main function
 #========
+if [ -n "${verbose}" ]; then
+	verbose="yes"
+fi
 main "$@"
 #========
