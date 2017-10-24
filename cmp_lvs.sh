@@ -86,16 +86,15 @@ function cecho {
 
 	if [ -n "$message" ]; then
         	if [ "$color" == "-blue" -o "$color" == "default" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" ]; then
-        	    echo aaab
 			eval "echo -e -n \$${color#-}\$message\$default"
         	elif [ "$color" == "blue" -o "$color" == "default" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" ]; then
 			eval "echo -e \$$color\$message\$default"
         	else
-        	    cecho "red" "Please set the \"color\" argument properly for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
+        	    cecho "red" "Please set the \"color\" argument for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} properly and try again, exiting!"
         	    exit 1
         	fi
     	else
-        	cecho "red" "Please set the \"message\" argument properly for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
+        	cecho "red" "Please set the \"message\" argument for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} properly and try again, exiting!"
        		exit 1
 	fi
 }
@@ -110,28 +109,29 @@ function chk_args {
 function chk_lv {
 	local lv="${1:-}"
 	verbose "blue" "function chk_lv [$lv]"
-	cecho "-light_blue" "Checking LV [$lv]..."
 
-	if [ -n "$lv" ]; then
-		if $(lvs "$lv" 1>&3 2>&4); then
-			cecho "green" "OK"
-		else
-			cecho "red" "LV [$lv] not found, exiting!"
-			exit 1
-		fi
+	if [ "$(dirname $lv)" != "." -a "$(dirname $lv)" != "/" ]; then
+		chk_vg "$(dirname $lv)"
 	else
-		cecho "red" "LV empty, exiting!"
+		cecho "red" "Logical Volume(LV) provided [$lv]doesn't seem to follow VG/LV format, please specify an LV correctly and try again, exiting!"
+		exit 1
+	fi
+
+	cecho "-light_blue" "Checking LV [$lv]..."
+	if $(lvs "$lv" 1>&3 2>&4); then
+		cecho "green" "OK"
+	else
+		cecho "red" "LV [$lv] not found, exiting!"
 		exit 1
 	fi
 }
 
 function chk_vg {
 	local vg="${1:-}"
-
-	verbose "blue" "function chk_vg arguments:[vg: $vg]"
-	cecho "-light_blue" "Checking VG $vg..."
+	verbose "blue" "function chk_vg [vg: $vg]"
 
 	if [ -n "$vg" ]; then
+		cecho "-light_blue" "Checking VG $vg..."
 		if $(vgs "$vg" 1>&3 2>&4); then
 			cecho "green" "OK"
 		else
@@ -139,7 +139,7 @@ function chk_vg {
 			exit 1
 		fi
 	else
-		cecho "red" "VG empty, exiting!"
+		cecho "red" "Please set the \"vg\" argument for the chk_vg function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
 		exit 1
 	fi
 }
@@ -158,7 +158,7 @@ function cfg_term {
 		exec 3>/dev/null
 		exec 4>/dev/null
 	else
-		cecho "red" "verbose variable not set correctly [verbose=$verbose]. Please set to [no|yes] in set_variables function and try again, exiting!"
+		cecho "red" "\"verbose\" variable is not set correctly [$verbose != \"no/yes\"], please set at the bottom of the $0 file and try again, exiting!"
 		exit 1
 	fi
 
@@ -169,25 +169,22 @@ function cfg_vars {
 	local arguments="$@"
 	verbose "blue" "function cfg_vars [arguments: $arguments]"
 
-	if [ "$#" -gt "0" -a "$#" -lt "4" ]; then
-		if [ "$#" == "1" ]; then
-			true
-		elif [ "$#" == "2" ]; then
-			true
-		elif [ "$#" == "3" ]; then
-			if [ "$3" == "verbose" ]; then
-				verbose="yes"
-			else
-				cecho "red" "Number of arguments used [$#] requires last one to be "verbose" or empty. Please use correct arguments and try again, exiting!"
-				usage
-			fi
-		fi
-	else
+	if [ "$#" -lt "1" -o "$#" -gt "3" ]; then
 		cecho "red" "Number of arguments used is not supported [1<$#<4]. Please use correct arguments and try again, exiting!"
 		usage
+	elif [ "$#" == "3" -a "${3:-}" != "verbose" ]; then
+		cecho "red" "Number of arguments used [$#] requires last one to be \"verbose\". Please use correct arguments and try again, exiting!"
+		usage
+	else
+		cecho "-light_blue" "Setting variables..."
+			local lv="$1"
+		if [ "$#" == "1" ]; then
+			cecho "green" "OK"
+		elif [ "$#" == "2" -o "$#" == "3" ]; then
+			local vg="$2"
+			cecho "green" "OK"
+		fi
 	fi
-
-	cecho "-light_blue" "Setting variables..."
 
 #	dst_vg="$2"
 #	src_vg="$(echo $1 | cut -d / -f 1)"
@@ -198,8 +195,6 @@ function cfg_vars {
 #	fi
 
 #	cecho "red" "\n$src_vg : $src_lv : $src_lvs : $dst_vg"
-
-	cecho "green" "OK"
 }
 
 function chk_for_backup {
@@ -302,9 +297,10 @@ function main {
 	arguments="$@"
 	verbose "blue" "function main [arguments: $arguments]"
 
-	cfg_vars $arguments
-	exit 0
 	cfg_term
+	cfg_vars $arguments
+
+	exit 0
 
 	for src_lv in "$src_lvs"; do
 		chk_for_backup "$src_vg" "$src_lv" "$dst_vg"
@@ -436,10 +432,14 @@ function verbose {
 verbose="no"
 #===========
 
-# Main function
-#========
-if [ -n "${verbose}" ]; then
+# Checking for the verbose option early on to cover all the functions
+#=====================================
+if [ "$BASH_ARGV" == "verbose" ]; then
 	verbose="yes"
 fi
+#=====================================
+
+# Main function
+#========
 main "$@"
 #========
