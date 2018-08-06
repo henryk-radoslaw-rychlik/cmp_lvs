@@ -165,9 +165,9 @@ function configure_terminal {
 	cecho "green" "OK"
 }
 
-function cfg_vars {
+function configure_variables {
 	local arguments="$@"
-	verbose "blue" "function cfg_vars [arguments: $arguments]"
+	verbose "blue" "function configure_variables [arguments: $arguments]"
 
 	if [ "$#" -lt "1" -o "$#" -gt "3" ]; then
 		cecho "red" "Number of arguments used is not supported [1<$#<4]. Please use correct arguments and try again, exiting!"
@@ -298,7 +298,7 @@ function main {
 	verbose "blue" "function main [arguments: $arguments]"
 
 	configure_terminal
-	cfg_vars $arguments
+	configure_variables $arguments
 
 	exit 0
 
