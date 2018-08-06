@@ -297,7 +297,7 @@ function main {
 	arguments="$@"
 	verbose "blue" "function main [arguments: $arguments]"
 
-	cfg_term
+	configure_terminal
 	cfg_vars $arguments
 
 	exit 0
