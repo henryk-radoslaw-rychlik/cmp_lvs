@@ -186,6 +186,20 @@ function configure_variables {
 		fi
 	fi
 
+	# Configurable settings
+#===========
+verbose="no"
+#===========
+
+# Checking for the verbose option early on to cover all the functions
+#=====================================
+if [ "$BASH_ARGV" == "verbose" ]; then
+	verbose="yes"
+fi
+#=====================================
+
+
+	
 #	dst_vg="$2"
 #	src_vg="$(echo $1 | cut -d / -f 1)"
 #	if [ -z "$(echo $1 | cut -d / -f 2)" ]; then
@@ -426,18 +440,6 @@ function verbose {
 		exit 1
 	fi
 }
-
-# Configurable settings
-#===========
-verbose="no"
-#===========
-
-# Checking for the verbose option early on to cover all the functions
-#=====================================
-if [ "$BASH_ARGV" == "verbose" ]; then
-	verbose="yes"
-fi
-#=====================================
 
 # Main function
 #========
