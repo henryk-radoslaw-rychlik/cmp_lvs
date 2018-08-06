@@ -429,7 +429,7 @@ function verbose {
 
 # Configurable settings
 #===========
-verbose="yes"
+verbose="no"
 #===========
 
 # Checking for the verbose option early on to cover all the functions
