@@ -144,8 +144,8 @@ function chk_vg {
 	fi
 }
 
-function cfg_term {
-	verbose "blue" "function cfg_term"
+function configure_terminal {
+	verbose "blue" "function configure_terminal"
 	cecho "-light_blue" "Configuring terminal..."
 
 	set -euf -o pipefail
