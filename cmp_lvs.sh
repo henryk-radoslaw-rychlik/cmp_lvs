@@ -1,8 +1,16 @@
-#!/bin/bash
+#!/bin/sh
 
 #-------------------------------------------------
 # See bottom of the file for configurable settings
 #-------------------------------------------------
+
+function activate {
+    local possible_lvs="${@:-}"
+    verbose "blue" "function activate [possible_lvs: $possible_lvs]"
+    check_if_argument_empty "$possible_lvs"
+    
+    check_lvs "${possible_lvs/activate/}"
+}
 
 function add_to_res {
 	local exit_code="$?"
@@ -75,16 +83,16 @@ function backup_lv {
 
 function cecho {
 	local color="${1:-}"
-    	local message="${2:-}"
+   	local message="${2:-}"
 
-	local blue="\e[034m"
-    	local default="\e[0m"
-    	local green="\e[032m"
-    	local light_blue="\e[094m"
-    	local red="\e[031m"
-    	local yellow="\e[033m"
-
-	if [ -n "$message" ]; then
+   	local blue="\e[034m"
+   	local default="\e[0m"
+   	local green="\e[032m"
+   	local light_blue="\e[094m"
+   	local red="\e[031m"
+   	local yellow="\e[033m"
+   	
+    if [ -n "$message" ]; then
         	if [ "$color" == "-blue" -o "$color" == "default" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" ]; then
 			eval "echo -e -n \$${color#-}\$message\$default"
         	elif [ "$color" == "blue" -o "$color" == "default" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" ]; then
@@ -99,54 +107,90 @@ function cecho {
 	fi
 }
 
-function chk_args {
-	verbose "blue" "function chk_args"
+function check_args {
+	verbose "blue" "function check_args"
+	check_number_of_arguments_passed "check_args" "0" "$#"
+	
 	if [ -z "$vg_lv" -o -z "$vg" ]; then
 		usage
 	fi
 }
 
-function chk_lv {
-	local lv="${1:-}"
-	verbose "blue" "function chk_lv [$lv]"
+function check_if_argument_empty {
+    local args="${@:-}"
+    verbose "blue" "function check_if_argument_empty [args: $args]"
 
-	if [ "$(dirname $lv)" != "." -a "$(dirname $lv)" != "/" ]; then
-		chk_vg "$(dirname $lv)"
-	else
-		cecho "red" "Logical Volume(LV) provided [$lv]doesn't seem to follow VG/LV format, please specify an LV correctly and try again, exiting!"
-		exit 1
-	fi
-
-	cecho "-light_blue" "Checking LV [$lv]..."
-	if $(lvs "$lv" 1>&3 2>&4); then
-		cecho "green" "OK"
-	else
-		cecho "red" "LV [$lv] not found, exiting!"
-		exit 1
-	fi
+    if [ -n "$args" ]; then
+        local arg
+        for arg in "$args"; do
+            if [ -z "$arg" ]; then
+                cecho "red" "[ ! -n $arg ]\nEmpty argument detected by  \"check_if_argument_empty\" function. Please set the arguments for the preceeding function correctly and try again, exiting!"
+                exit_error
+            fi
+        done
+    else
+        cecho "red" "[ ! -n $args ]\nNo arguments passed to  \"check_if_argument_empty\" function. Please set the arguments for the preceeding function correctly and try again, exiting!"
+        exit_error
+    fi
 }
 
-function chk_vg {
-	local vg="${1:-}"
-	verbose "blue" "function chk_vg [vg: $vg]"
+function check_number_of_arguments_passed {
+    local function_name="${1:-}"
+    local number_of_arguments_expected="${2:-}"
+    local number_of_arguments_passed="${3:-}"
 
-	if [ -n "$vg" ]; then
+    check_if_argument_empty "$function_name" "$number_of_arguments_passed" "$number_of_arguments_expected"
+    verbose "blue" "function check_number_of_arguments_passed [ function_name: $function_name, number_of_arguments_passed: $number_of_arguments_passed, number_of_arguments_expected: $number_of_arguments_expected]"
+    
+    if [ "$number_of_arguments_passed" != "$number_of_arguments_expected" ]; then
+        cecho "red" "Number of arguments given[$number_of_arguments_passed] doesn't equal number_of_arguments_expected[$number_of_arguments_expected], please set the arguments for \"$function_name\" function properly and try again, exiting!"
+        exit_error
+    fi
+}
+
+function check_lvs {
+	local lvs="${@:-}"
+	verbose "blue" "function check_lv [lvs: $lvs]"
+	check_if_argument_empty "$lvs"
+
+    for lv in "$lvs"; do
+        if [ "$(dirname $lv)" != "." -a "$(dirname $lv)" != "/" ]; then
+            check_vgs "$(dirname $lv)"
+        else
+            cecho "red" "Logical Volume(LV) provided [$lv]doesn't seem to follow VG/LV format, please specify an LV correctly and try again, exiting!"
+            exit_error
+        fi
+
+        cecho "-light_blue" "Checking LV [$lv]..."
+        if $(lvs "$lv" 1>&3 2>&4); then
+            cecho "green" "OK"
+        else
+            cecho "red" "LV [$lv] not found, exiting!"
+            exit_error
+        fi
+    done
+}
+
+function check_vgs {
+	local vgs="${@:-}"
+	verbose "blue" "function check_vgs [vgs: $vgs]"
+	check_if_argument_empty "$vgs"
+
+	for vg in "$vgs"; do
 		cecho "-light_blue" "Checking VG $vg..."
 		if $(vgs "$vg" 1>&3 2>&4); then
 			cecho "green" "OK"
 		else
 			cecho "red" "VG [$vg] not found, exiting!"
-			exit 1
+			exit_error
 		fi
-	else
-		cecho "red" "Please set the \"vg\" argument for the chk_vg function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
-		exit 1
-	fi
+    done
 }
 
 function configure_terminal {
 	verbose "blue" "function configure_terminal"
 	cecho "-light_blue" "Configuring terminal..."
+	check_number_of_arguments_passed "configure_terminal" "0" "$#"
 
 	set -euf -o pipefail
 	trap exit_trap EXIT
@@ -157,12 +201,15 @@ function configure_terminal {
 	elif [ "$verbose" == "no" ]; then
 		exec 3>/dev/null
 		exec 4>/dev/null
-	else
-		cecho "red" "\"verbose\" variable is not set correctly [$verbose != \"no/yes\"], please set at the bottom of the $0 file and try again, exiting!"
-		exit 1
-	fi
+    fi
+    
+    if [ $(whoami) != "root" ]; then
+        cecho "red" "\nrun only as root"
+        exit_error
+    else
+        cecho "green" "OK"
+    fi
 
-	cecho "green" "OK"
 }
 
 function configure_variables {
@@ -172,9 +219,9 @@ function configure_variables {
 	if [ "$#" -lt "1" -o "$#" -gt "3" ]; then
 		cecho "red" "Number of arguments used is not supported [1<$#<4]. Please use correct arguments and try again, exiting!"
 		usage
-	elif [ "$#" == "3" -a "${3:-}" != "verbose" ]; then
-		cecho "red" "Number of arguments used [$#] requires last one to be \"verbose\". Please use correct arguments and try again, exiting!"
-		usage
+	#elif [ "$#" == "3" -a "${3:-}" != "verbose" ]; then
+	#	cecho "red" "Number of arguments used [$#] requires last one to be \"verbose\". Please use correct arguments and try again, exiting!"
+	#	usage
 	else
 		cecho "-light_blue" "Setting variables..."
 			local lv="$1"
@@ -193,9 +240,9 @@ verbose="no"
 
 # Checking for the verbose option early on to cover all the functions
 #=====================================
-if [ "$BASH_ARGV" == "verbose" ]; then
-	verbose="yes"
-fi
+#if [ "$BASH_ARGV" == "verbose" ]; then
+#	verbose="yes"
+#fi
 #=====================================
 
 
@@ -211,14 +258,14 @@ fi
 #	cecho "red" "\n$src_vg : $src_lv : $src_lvs : $dst_vg"
 }
 
-function chk_for_backup {
+function check_for_backup {
 	local dst_vg="$3"
 	local lv="$2"
 	local vg="$1"
-	verbose "blue" "function chk_for_backup [lv: $lv, vg: $vg]"
+	verbose "blue" "function check_for_backup [lv: $lv, vg: $vg]"
 
-	chk_lv "$vg/$lv"
-	chk_vg "$dst_vg"
+	check_lv "$vg/$lv"
+	check_vgs "$dst_vg"
 
 	cecho "-light_blue" "Searching for existing backup..."
 	echo 1
@@ -266,10 +313,10 @@ function clean_up {
 	cecho "green" "OK"
 }
 
-function cmp_lvs {
+function compare_lvs {
 	local lv="${1:-}"
 	local vg="${2:-}"
-	verbose "blue" "function cmp_lvs [lv:$lv, vg:$vg]"
+	verbose "blue" "function compare_lvs [lv:$lv, vg:$vg]"
 
 	mnt_lv "$lv"
 	mnt_backups "$lv" "$vg"
@@ -286,6 +333,11 @@ function cmp_lvs {
 	done
 }
 
+function exit_error {
+    verbose "blue" "function error_exit"
+    exit 0
+}
+
 function exit_trap {
 	local exit_code="$?"
 	verbose "blue" "function exit_trap [exit_code: $?]"
@@ -299,45 +351,22 @@ function exit_trap {
 	clean_up
 }
 
+function function_argument_error {
+    local argument_name="${1:-}"
+    local function_name="${2:-}"
+    verbose "blue" "function function_argument_error [argument_name: $argument_name, function_name: $function_name]"
+    check_number_of_arguments_passed "function_argument_error" "2" "$#"
+    
+    cecho "red" "Please set the $argument_name argument properly for the $function_name function and try again, exiting!"
+    exit 1
+}
+    
 function get_answer {
     read answer
     while [ "$answer" != "no" -a "$answer" != "yes" ]; do
         cecho "yellow" "Please choose the correct answer[no/yes]!"
         read answer
     done
-}
-
-function main {
-	arguments="$@"
-	verbose "blue" "function main [arguments: $arguments]"
-
-	configure_terminal
-	configure_variables $arguments
-
-	exit 0
-
-	for src_lv in "$src_lvs"; do
-		chk_for_backup "$src_vg" "$src_lv" "$dst_vg"
-		if [ -n "$backups" ]; then
-			cecho "default" "Would you like to compare[no/yes]?"
-			get_answer
-			if [ "$answer" == "yes" ]; then
-				cmp_lvs "$src_vg/$src_lv" "$dst_vg"
-			else
-				cecho "blue" "OK buddy, exiting"
-				exit 0
-			fi
-		else
-			cecho "blue" "No backups found, would you like to create[no/yes]?"
-			get_answer
-			if [ "$answer" == "yes" ]; then
-				backup_lv "$src_vg/$src_lv" "$dst_vg"
-			else
-				cecho "blue" "OK buddy, exiting"
-				exit 0
-			fi
-		fi
-	done
 }
 
 function mk_dir {
@@ -407,18 +436,59 @@ function rm_from_res {
 	fi
 }
 
-function usage {
-	verbose "blue" "function usage"
+function run_command {
+    if [ "$#" == "6" ]; then
+        local command="${1:-}"
+        local condition="${2:-}"
+        local error_message="${3:-}"
+        local message="${4:-}"
+        local permissible="${5:-}"
+        local resource="${6:-}"
+    
+        verbose "blue" "function run_command [command: $command, condition: $condition, error_message: $error_message, message: $message, permissible: $permissible, resource: $resource]"
 
-	cecho "yellow" "Usage:\n\n\
-			$0 VG/LV VG [verbose]\n\
-			VG/LV - Logical Volume(LV) in Volume Group(VG) to compare or back up\n\
-			VG - Volume Group with backup or destination\n\n\
-			$0 VG/LV [verbose]\n\
-			VG/LV - Logical Volume(LV) in Volume Group(VG) to activate/deactivate and mount/unmount"
-	exit 1
+        check_if_argument_empty "$command" "$permissible"
+
+        if eval $condition 1>&3 2>&4; then
+            if [ -z "$message" ]; then
+                verbose "blue" "Executing command [$command]..."
+            else
+                verbose "blue" "$message..."
+            fi
+            if [ -z "$error_message" ]; then
+                eval "$command"
+                check_status "$command" "$resource"
+            else
+                eval "$command"
+                check_status "$error_message" "$resource"
+            fi
+        else
+            if [ "$permissible" == "fail_on_condition" ]; then
+                cecho "red" "[ ! $condition ]\n Please set the \"condition\" argument for \"run-command\" function correctly and try again, exiting!"
+                exit_error
+            elif [ "$permissible" != "do_not_fail_on_condition" -a "$permissible" != "fail_on_condition" ]; then
+                cecho "red" "[ $permissible != do_not_fail_on_condition -a $permissible != fail_on_condition ]\n Please set the \"condition\" argument for \"run-command\" function correctly and try again, exiting!"
+                exit_error
+            fi
+        fi
+    else
+        cecho "red" "[ $# != 6 ]\nPlease set the arguments for \"run_command\" function properly and try again, exiting!"
+    fi
 }
 
+function usage {
+	verbose "blue" "function usage"
+	check_number_of_arguments_passed "usage" "0" "$#"
+
+	cecho "yellow" "Usage:\n
+                    ${0#./} activate VG/LV [verbose]\n\
+                    VG/LV - Logical Volume(LV) in Volume Group(VG) to activate\n\n
+                    $0 VG/LV [verbose]\n\
+                    VG/LV - Logical Volume(LV) in Volume Group(VG) to activate/deactivate and mount/unmount"
+    exit 0
+}
+
+# OK
 function verbose {
 	local color="${1:-}"
 	local message="${2:-}"
@@ -426,22 +496,87 @@ function verbose {
 	if [ -n "$color" ]; then
 		if [ -n "$message" ]; then
 			if [ "$verbose" == "yes" ]; then
-            			cecho "$color" "$message"
+                cecho "$color" "$message"
 			elif [ "$verbose" != "no" -a "$verbose" != "yes" ]; then
-				cecho "red" "Please set the global \"verbose\" variable properly [\"$verbose\" != no/yes] at the bottom of the $0 file and try again, exiting!"
+				cecho "red" "Please set the global \"verbose\" variable properly [\"$verbose\" != no/yes] and try again, exiting!"
 				exit 1
-        		fi
-        	else
-			cecho "red" "Please set the \"message\" argument properly for the verbose function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
-   			exit 1
-		fi
+            fi
+        else
+            function_argument_error "message" "verbose"
+        fi
 	else
-		cecho "red" "Please set the \"color\" argument properly for the verbose function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} and try again, exiting!"
-		exit 1
+        function_argument_error "color" "verbose"
 	fi
 }
 
-# Main function
-#========
-main "$@"
-#========
+########################
+# main
+########################
+verbose="no"
+configure_terminal
+configure_variables "$@"
+
+arguments=( "$@" )
+
+for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
+    case ${arguments[$argument_number]} in
+        activate)
+            activate ${arguments[@]:(($argument_number + 1))}
+            break
+            ;;
+        verbose)
+            verbose="yes"
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+exit 0
+    case "$argument" in
+        activate)
+            activate
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+
+if [ "$#" == "0" ] || [ "$#" == "1" -a "$1" == "verbose" ]; then
+    verbose="no"
+    usage
+elif [ "$#" -gt "1" -a "$1" == "verbose" ]; then
+    verbose="yes"
+else
+    verbose="no"
+fi
+
+
+
+
+exit 0
+
+for src_lv in "$src_lvs"; do
+	check_for_backup "$src_vg" "$src_lv" "$dst_vg"
+	if [ -n "$backups" ]; then
+		cecho "default" "Would you like to compare[no/yes]?"
+		get_answer
+		if [ "$answer" == "yes" ]; then
+			compare_lvs "$src_vg/$src_lv" "$dst_vg"
+		else
+			cecho "blue" "OK buddy, exiting"
+			exit 0
+		fi
+	else
+		cecho "blue" "No backups found, would you like to create[no/yes]?"
+		get_answer
+		if [ "$answer" == "yes" ]; then
+			backup_lv "$src_vg/$src_lv" "$dst_vg"
+		else
+			cecho "blue" "OK buddy, exiting"
+			exit 0
+		fi
+	fi
+done
