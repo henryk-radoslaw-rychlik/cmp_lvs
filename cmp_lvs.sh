@@ -1,20 +1,18 @@
-#!/bin/sh
+#!/bin/bash
+
+#-------
+# TODO:
+# - fsck
+# - no LVs passed
+#-------
 
 #-------------------------------------------------
 # See bottom of the file for configurable settings
 #-------------------------------------------------
 
-function activate {
-    local possible_lvs="${@:-}"
-    verbose "blue" "function activate [possible_lvs: $possible_lvs]"
-    check_if_argument_empty "$possible_lvs"
-    
-    check_lvs "${possible_lvs/activate/}"
-}
-
 function add_to_res {
 	local exit_code="$?"
-	local resource="${1:-}"
+	local resource="${1:-}"  
 	verbose "blue" "function add_to_res [resource: $resource, exit_code: $exit_code]"
 
 	resources="$resource ${resources:-}"
@@ -94,9 +92,9 @@ function cecho {
    	
     if [ -n "$message" ]; then
         	if [ "$color" == "-blue" -o "$color" == "default" -o "$color" == "-green" -o "$color" == "-light_blue" -o "$color" == "-red" -o "$color" == "-yellow" ]; then
-			eval "echo -e -n \$${color#-}\$message\$default"
+			eval "echo -e -n \$${color#-}\${message[@]}\$default"
         	elif [ "$color" == "blue" -o "$color" == "default" -o "$color" == "green" -o "$color" == "light_blue" -o "$color" == "red" -o "$color" == "yellow" ]; then
-			eval "echo -e \$$color\$message\$default"
+			eval "echo -e \$$color\${message[@]}\$default"
         	else
         	    cecho "red" "Please set the \"color\" argument for the cecho function at line ${BASH_LINENO[$((${#BASH_LINENO[@]} - 2))]} properly and try again, exiting!"
         	    exit 1
@@ -107,9 +105,9 @@ function cecho {
 	fi
 }
 
-function check_args {
-	verbose "blue" "function check_args"
-	check_number_of_arguments_passed "check_args" "0" "$#"
+function check_function_arguments {
+	verbose "blue" "function check_function_arguments"
+	check_number_of_arguments_passed "check_function_arguments" "0" "$#"
 	
 	if [ -z "$vg_lv" -o -z "$vg" ]; then
 		usage
@@ -149,9 +147,9 @@ function check_number_of_arguments_passed {
 }
 
 function check_lvs {
-	local lvs="${@:-}"
-	verbose "blue" "function check_lv [lvs: $lvs]"
-	check_if_argument_empty "$lvs"
+    local lvs="${@:-}"
+    verbose "blue" "function check_lvs [lvs: $lvs]"
+#     check_if_argument_empty "$lvs"
 
     for lv in "$lvs"; do
         if [ "$(dirname $lv)" != "." -a "$(dirname $lv)" != "/" ]; then
@@ -169,6 +167,20 @@ function check_lvs {
             exit_error
         fi
     done
+}
+
+function check_user {
+    verbose "blue" "function check_user"
+    check_number_of_arguments_passed "check_user" "0" "$#"
+
+    cecho "-light_blue" "Checking for root priviliges..."
+    if [ $(whoami) != "root" ]; then
+        cecho "red" "FAILED"
+        cecho "yellow" "This script requires root privileges, exiting!"
+        exit_error
+    else
+        cecho "green" "OK"
+    fi
 }
 
 function check_vgs {
@@ -203,59 +215,7 @@ function configure_terminal {
 		exec 4>/dev/null
     fi
     
-    if [ $(whoami) != "root" ]; then
-        cecho "red" "\nrun only as root"
-        exit_error
-    else
         cecho "green" "OK"
-    fi
-
-}
-
-function configure_variables {
-	local arguments="$@"
-	verbose "blue" "function configure_variables [arguments: $arguments]"
-
-	if [ "$#" -lt "1" -o "$#" -gt "3" ]; then
-		cecho "red" "Number of arguments used is not supported [1<$#<4]. Please use correct arguments and try again, exiting!"
-		usage
-	#elif [ "$#" == "3" -a "${3:-}" != "verbose" ]; then
-	#	cecho "red" "Number of arguments used [$#] requires last one to be \"verbose\". Please use correct arguments and try again, exiting!"
-	#	usage
-	else
-		cecho "-light_blue" "Setting variables..."
-			local lv="$1"
-		if [ "$#" == "1" ]; then
-			cecho "green" "OK"
-		elif [ "$#" == "2" -o "$#" == "3" ]; then
-			local vg="$2"
-			cecho "green" "OK"
-		fi
-	fi
-
-	# Configurable settings
-#===========
-verbose="no"
-#===========
-
-# Checking for the verbose option early on to cover all the functions
-#=====================================
-#if [ "$BASH_ARGV" == "verbose" ]; then
-#	verbose="yes"
-#fi
-#=====================================
-
-
-	
-#	dst_vg="$2"
-#	src_vg="$(echo $1 | cut -d / -f 1)"
-#	if [ -z "$(echo $1 | cut -d / -f 2)" ]; then
-#		src_lvs="$(lvs --noheadings -oname $src_vg)"
-#	else
-#		src_lvs="$(echo $1 | cut -d / -f 2)"
-#	fi
-
-#	cecho "red" "\n$src_vg : $src_lv : $src_lvs : $dst_vg"
 }
 
 function check_for_backup {
@@ -318,7 +278,7 @@ function compare_lvs {
 	local vg="${2:-}"
 	verbose "blue" "function compare_lvs [lv:$lv, vg:$vg]"
 
-	mnt_lv "$lv"
+	mount_lvs "$lv"
 	mnt_backups "$lv" "$vg"
 
 	for backup in $backups; do
@@ -369,9 +329,41 @@ function get_answer {
     done
 }
 
-function mk_dir {
+function lvm_activate {
+    local possible_vgs_or_lvs=${@:-}
+    verbose "blue" "function lvm_activate [possible_vgs_or_lvs: $possible_vgs_or_lvs]"
+    check_if_argument_empty "$possible_vgs_or_lvs"
+    
+    for possible_vg_or_lv in ${possible_vgs_or_lvs}; do
+        if grep / <<< "$possible_vg_or_lv"; then
+            check_lvs "$possible_vg_or_lv"
+            lvchange -ay "$possible_vg_or_lv"
+        else
+            check_vgs "$possible_vg_or_lv"
+            vgchange -ay "$possible_vg_or_lv"
+        fi
+    done
+}
+
+function lvm_deactivate {
+    local possible_vgs_or_lvs=${@:-}
+    verbose "blue" "function lvm_deactivate [possible_vgs_or_lvs: $possible_vgs_or_lvs]"
+    check_if_argument_empty "$possible_vgs_or_lvs"
+    
+    for possible_vg_or_lv in ${possible_vgs_or_lvs}; do
+        if grep / <<< "$possible_vg_or_lv"; then
+            check_lvs "$possible_vg_or_lv"
+            lvchange -an "$possible_vg_or_lv"
+        else
+            check_vgs "$possible_vg_or_lv"
+            vgchange -an "$possible_vg_or_lv"
+        fi
+    done
+}
+
+function make_directory {
 	local dir="${1:-}"
-	verbose "blue" "function mk_dir [$dir]"
+	verbose "blue" "function make_directory [$dir]"
 
 	if [ -d "$dir" ]; then
 		cecho "red" "Directory [$dir] already exists. exiting!"
@@ -388,18 +380,19 @@ function mnt_backups {
 	verbose "blue" "function mount_backups [lv:$lv, vg:$vg]"
 
 	for backup in $backups; do
-		mnt_lv "$vg/$backup"
+		mount_lvs "$vg/$backup"
 	done
 }
 
-function mnt_lv {
-	local lv="${1:-}"
-	local dir="/mnt/$(echo $lv | cut -d / -f 2)"
-	verbose "blue" "function mnt_lv [LV: $lv, DIR: $dir]"
-	cecho "-light_blue" "Mounting $lv at $dir..."
+function mount_lvs {
+	local lvs="${@:-}"
+	verbose "blue" "function mount_lvs [LVs: $lvs]"
 
-	mk_dir "$dir"
-	if [ ! -b /dev/"$lv" ]; then
+	for lv in $lvs; do
+            local dir="/mnt/$(echo $lv | sed 's:/:-:')"
+            cecho "-light_blue" "Mounting $lv at $dir..."
+            make_directory "$dir"
+            if [ ! -b /dev/"$lv" ]; then
 		cecho "blue" "/dev/$lv does not exist, trying to activate..."
 		lvchange -ay "$lv"
 		if [ "$?" == "0" ]; then
@@ -408,16 +401,17 @@ function mnt_lv {
 			cecho "red" "Failed to activate LV $lv, exiting!"
 			exit 1
 		fi
-	fi
-	add_to_res "/dev/$lv"
-	if (cryptsetup isLuks /dev/"$lv"); then
-		cryptsetup luksOpen /dev/"$lv" "$(echo $lv | cut -f 2 -d /)"
-		mount /dev/mapper/"$(echo $lv | cut -f 2 -d /)" "$dir"
-		add_to_res /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
-	else
-		mount /dev/"$lv" "$dir"
-	fi
-	add_to_res "$dir"
+            fi
+            add_to_res "/dev/$lv"
+            if (cryptsetup isLuks /dev/"$lv"); then
+                cryptsetup luksOpen /dev/"$lv" "$(echo $lv | cut -f 2 -d /)"
+                mount /dev/mapper/"$(echo $lv | cut -f 2 -d /)" "$dir"
+                add_to_res /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
+            else
+                mount /dev/"$lv" "$dir"
+            fi
+            add_to_res "$dir"
+        done
 }
 
 function rm_from_res {
@@ -476,15 +470,40 @@ function run_command {
     fi
 }
 
+function umount_lvs {
+	local lvs="${@:-}"
+	check_if_argument_empty "$lvs"
+	verbose "blue" "function umount_lvs [LVs: $lvs]"
+
+	for lv in $lvs; do
+            local dir="/mnt/$(echo $lv | sed 's:/:-:')"
+            cecho "-light_blue" "Unmounting $lv from $dir..."
+            if (cryptsetup isLuks /dev/"$lv"); then
+                umount /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
+                cryptsetup close /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
+            else
+                umount /dev/"$lv"
+            fi
+            rmdir /mnt/$dir
+            cecho "green" "OK"
+        done
+}
+
 function usage {
 	verbose "blue" "function usage"
 	check_number_of_arguments_passed "usage" "0" "$#"
 
-	cecho "yellow" "Usage:\n
-                    ${0#./} activate VG/LV [verbose]\n\
-                    VG/LV - Logical Volume(LV) in Volume Group(VG) to activate\n\n
-                    $0 VG/LV [verbose]\n\
-                    VG/LV - Logical Volume(LV) in Volume Group(VG) to activate/deactivate and mount/unmount"
+	cecho "yellow" "Usage: \n
+                        \t${0#./} [options] <action> <action_arguments> [options]\n
+                        \n
+                        actions: \n
+                        \t activate <VG>[/LV] \n
+                        \t deactivate <VG>[/LV] \n
+                        \t mount <VG>/<LV> \n
+                        \t oumount <VG>/<LV>\n
+                        \n
+                        options: \n
+                        \t verbose"
     exit 0
 }
 
@@ -513,49 +532,63 @@ function verbose {
 # main
 ########################
 verbose="no"
+check_user
 configure_terminal
-configure_variables "$@"
 
-arguments=( "$@" )
+if [ "$#" == "0" ]; then
+    usage
+else
+    arguments=( "$@" )
+fi
 
 for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
     case ${arguments[$argument_number]} in
         activate)
-            activate ${arguments[@]:(($argument_number + 1))}
+            lvm_activate "${arguments[@]:(($argument_number + 1))}"
+            break
+            ;;
+        compare_hash)
+            lvm_activate "${arguments[@]:(($argument_number + 1))}"
+            mount_lvs "${arguments[@]:(($argument_number + 1))}"
+            
+            umount_lvs "${arguments[@]:(($argument_number + 1))}"
+            lvm_deactivate "${arguments[@]:(($argument_number + 1))}"            
+            break
+            ;;
+        compare_rsync)
+            lvm_activate "${arguments[@]:(($argument_number + 1))}"
+            mount_lvs "${arguments[@]:(($argument_number + 1))}"
+            
+            umount_lvs "${arguments[@]:(($argument_number + 1))}"
+            lvm_deactivate "${arguments[@]:(($argument_number + 1))}"            
+            break
+            ;;
+            deactivate)
+            lvm_deactivate "${arguments[@]:(($argument_number + 1))}"
+            break
+            ;;
+        mount)
+            lvm_activate "${arguments[@]:(($argument_number + 1))}"
+            mount_lvs "${arguments[@]:(($argument_number + 1))}"
+            break
+            ;;
+        umount)
+            umount_lvs "${arguments[@]:(($argument_number + 1))}"
+            lvm_deactivate "${arguments[@]:(($argument_number + 1))}"
             break
             ;;
         verbose)
-            verbose="yes"
+            if [ "${#arguments[@]}" == "1" ]; then
+                usage
+            else
+                verbose="yes"
+            fi
             ;;
         *)
             usage
             ;;
     esac
 done
-exit 0
-    case "$argument" in
-        activate)
-            activate
-            ;;
-        *)
-            usage
-            ;;
-    esac
-done
-
-
-if [ "$#" == "0" ] || [ "$#" == "1" -a "$1" == "verbose" ]; then
-    verbose="no"
-    usage
-elif [ "$#" -gt "1" -a "$1" == "verbose" ]; then
-    verbose="yes"
-else
-    verbose="no"
-fi
-
-
-
-
 exit 0
 
 for src_lv in "$src_lvs"; do
