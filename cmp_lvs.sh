@@ -555,20 +555,32 @@ for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
             lvm_activate "${arguments[@]:(($argument_number + 1))}"
             break
             ;;
-        compare_hash)
-            lvm_activate "${arguments[@]:(($argument_number + 1))}"
-            mount_lvs "${arguments[@]:(($argument_number + 1))}"
-            
-            umount_lvs "${arguments[@]:(($argument_number + 1))}"
-            lvm_deactivate "${arguments[@]:(($argument_number + 1))}"            
+        compare_rsync)
+            source="${arguments[(($argument_number + 1))]:-}"
+            destination="${arguments[(($argument_number + 2))]:-}"
+            if [ -n "$source" -a -n "$destination" ]; then
+                lvm_activate "$source" "$destination"
+                mount_lvs "$source" "$destination"
+                rsync -a /mnt/$(echo "$source" sed 's:/:-:g') /mnt/$(echo "$destination" sed 's:/:-:g')
+                umount_lvs "$source" "$destination"
+                lvm_deactivate "$source" "$destination"
+            else
+                usage
+            fi
             break
             ;;
-        compare_rsync)
-            lvm_activate "${arguments[@]:(($argument_number + 1))}"
-            mount_lvs "${arguments[@]:(($argument_number + 1))}"
-            read
-            umount_lvs "${arguments[@]:(($argument_number + 1))}"
-            lvm_deactivate "${arguments[@]:(($argument_number + 1))}"            
+        compare_rsync_dry)
+            source="${arguments[(($argument_number + 1))]:-}"
+            destination="${arguments[(($argument_number + 2))]:-}"
+            if [ -n "$source" -a -n "$destination" ]; then
+                lvm_activate "$source" "$destination"
+                mount_lvs "$source" "$destination"
+                rsync -a --list-only /mnt/$(echo "$source" sed 's:/:-:g') /mnt/$(echo "$destination" sed 's:/:-:g')
+                umount_lvs "$source" "$destination"
+                lvm_deactivate "$source" "$destination"
+            else
+                usage
+            fi
             break
             ;;
             deactivate)
