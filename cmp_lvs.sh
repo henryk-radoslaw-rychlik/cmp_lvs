@@ -482,9 +482,17 @@ function umount_lvs {
                 umount /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
                 cryptsetup close /dev/mapper/"$(echo $lv | cut -f 2 -d /)"
             else
-                umount /dev/"$lv"
+                if mountpoint "$dir"; then
+                    umount "$dir"
+                else
+                    cecho "yellow" "Nothing mounted at $dir directory, skipping."
+                fi
             fi
-            rmdir $dir
+            if [ -d "$dir" ]; then
+                rmdir $dir
+            else
+                cecho "yellow" "Directory $dir doesn't exist, skipping."
+            fi
             cecho "green" "OK"
         done
 }
