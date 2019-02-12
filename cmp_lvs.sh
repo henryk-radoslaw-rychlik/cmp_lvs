@@ -4,6 +4,7 @@
 # TODO:
 # - fsck
 # - no LVs passed
+# mount check if mounted
 #-------
 
 #-------------------------------------------------
@@ -555,13 +556,13 @@ for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
             lvm_activate "${arguments[@]:(($argument_number + 1))}"
             break
             ;;
-        compare_rsync)
+        compare)
             source="${arguments[(($argument_number + 1))]:-}"
             destination="${arguments[(($argument_number + 2))]:-}"
             if [ -n "$source" -a -n "$destination" ]; then
                 lvm_activate "$source" "$destination"
                 mount_lvs "$source" "$destination"
-                rsync -anO /mnt/$(echo "$source" sed 's:/:-:g') /mnt/$(echo "$destination" sed 's:/:-:g')
+                rsync -a --info=name -n -O /mnt/$(echo "$source" | sed 's:/:-:g')/ /mnt/$(echo "$destination" | sed 's:/:-:g')/
                 umount_lvs "$source" "$destination"
                 lvm_deactivate "$source" "$destination"
             else
@@ -569,14 +570,13 @@ for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
             fi
             break
             ;;
-        compare_rsync_dry)
+        sync)
             source="${arguments[(($argument_number + 1))]:-}"
             destination="${arguments[(($argument_number + 2))]:-}"
             if [ -n "$source" -a -n "$destination" ]; then
                 lvm_activate "$source" "$destination"
                 mount_lvs "$source" "$destination"
-                echo /mnt/$(echo "$source" | sed 's:/:-:g') /mnt/$(echo "$destination" | sed 's:/:-:g')
-                rsync -a --list-only /mnt/$(echo "$source" | sed 's:/:-:g') /mnt/$(echo "$destination" | sed 's:/:-:g')
+                rsync -a --info=name -O /mnt/$(echo "$source" | sed 's:/:-:g')/ /mnt/$(echo "$destination" | sed 's:/:-:g')/
                 umount_lvs "$source" "$destination"
                 lvm_deactivate "$source" "$destination"
             else
