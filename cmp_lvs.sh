@@ -575,7 +575,7 @@ for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
             if [ -n "$source" -a -n "$destination" ]; then
                 lvm_activate "$source" "$destination"
                 mount_lvs "$source" "$destination"
-                rsync -a --list-only /mnt/$(echo "$source" sed 's:/:-:g') /mnt/$(echo "$destination" sed 's:/:-:g')
+                rsync -a --list-only /mnt/$(echo "$source" | sed 's:/:-:g') /mnt/$(echo "$destination" | sed 's:/:-:g')
                 umount_lvs "$source" "$destination"
                 lvm_deactivate "$source" "$destination"
             else
