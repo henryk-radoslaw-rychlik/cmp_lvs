@@ -484,7 +484,7 @@ function umount_lvs {
             else
                 umount /dev/"$lv"
             fi
-            rmdir /mnt/$dir
+            rmdir $dir
             cecho "green" "OK"
         done
 }
