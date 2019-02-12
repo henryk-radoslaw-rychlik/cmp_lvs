@@ -15,7 +15,7 @@ function add_to_res {
 	local resource="${1:-}"  
 	verbose "blue" "function add_to_res [resource: $resource, exit_code: $exit_code]"
 
-	resources="$resource ${resources:-}"
+	resources_to_clean="$resource ${resources_to_clean:-}"
 }
 
 function backup_lv {
@@ -239,10 +239,10 @@ function check_for_backup {
 }
 
 function clean_up {
-	verbose "blue" "function clean_up [resources: ${resources:-}]"
+	verbose "blue" "function clean_up [resources_to_clean: ${resources_to_clean:-}]"
 	cecho "-light_blue" "Cleaning up..."
 
-	for resource in ${resources:-}; do
+	for resource in ${resources_to_clean:-}; do
 		if (mountpoint "$resource" > /dev/null); then
 			verbose "blue" "Unmountng $resource"
 			umount "$resource"
@@ -361,9 +361,9 @@ function lvm_deactivate {
     done
 }
 
-function make_directory {
+function create_dir {
 	local dir="${1:-}"
-	verbose "blue" "function make_directory [$dir]"
+	verbose "blue" "function create_dir [$dir]"
 
 	if [ -d "$dir" ]; then
 		cecho "red" "Directory [$dir] already exists. exiting!"
@@ -391,7 +391,7 @@ function mount_lvs {
 	for lv in $lvs; do
             local dir="/mnt/$(echo $lv | sed 's:/:-:')"
             cecho "-light_blue" "Mounting $lv at $dir..."
-            make_directory "$dir"
+            create_dir "$dir"
             if [ ! -b /dev/"$lv" ]; then
 		cecho "blue" "/dev/$lv does not exist, trying to activate..."
 		lvchange -ay "$lv"
@@ -416,11 +416,11 @@ function mount_lvs {
 
 function rm_from_res {
 	local resource=${1:-}
-	verbose "blue" "function rm_from_res [resource: $resource, resources: $resources]"
-	if [ -n "$resources" ]; then
+	verbose "blue" "function rm_from_res [resource: $resource, resources_to_clean: $resources_to_clean]"
+	if [ -n "$resources_to_clean" ]; then
 		if [ -n "resource" ]; then
 			verbose "blue" "Removing $resource"
-			resources=${resources#$resource }
+			resources_to_clean=${resources_to_clean#$resource }
 		else
 			echo "The given resource [$resource] is empty, exiting!"
 			exit 1
@@ -558,7 +558,7 @@ for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
         compare_rsync)
             lvm_activate "${arguments[@]:(($argument_number + 1))}"
             mount_lvs "${arguments[@]:(($argument_number + 1))}"
-            
+            read
             umount_lvs "${arguments[@]:(($argument_number + 1))}"
             lvm_deactivate "${arguments[@]:(($argument_number + 1))}"            
             break
@@ -570,6 +570,7 @@ for ((argument_number=0;argument_number<${#arguments[@]};argument_number++)) do
         mount)
             lvm_activate "${arguments[@]:(($argument_number + 1))}"
             mount_lvs "${arguments[@]:(($argument_number + 1))}"
+            resources_to_clean=""
             break
             ;;
         umount)
