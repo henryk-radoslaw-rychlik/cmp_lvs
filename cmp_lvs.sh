@@ -439,7 +439,7 @@ function run_command {
         local message="${4:-}"
         local permissible="${5:-}"
         local resource="${6:-}"
-    
+
         verbose "blue" "function run_command [command: $command, condition: $condition, error_message: $error_message, message: $message, permissible: $permissible, resource: $resource]"
 
         check_if_argument_empty "$command" "$permissible"
